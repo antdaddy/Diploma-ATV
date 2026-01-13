@@ -40,26 +40,26 @@ const RUSSIAN_COMPANIES = [
 ];
 
 class RussianDataGenerator {
-    static randomElement(array) {
+    randomElement(array) {
         return array[Math.floor(Math.random() * array.length)];
     }
     
-    static generateFIO() {
+    generateFIO() {
         const firstName = this.randomElement(RUSSIAN_FIRST_NAMES);
         const lastName = this.randomElement(RUSSIAN_LAST_NAMES);
         const middleName = this.randomElement(RUSSIAN_MIDDLE_NAMES);
         return `${lastName} ${firstName} ${middleName}`;
     }
     
-    static generateFirstName() {
+    generateFirstName() {
         return this.randomElement(RUSSIAN_FIRST_NAMES);
     }
     
-    static generateLastName() {
+    generateLastName() {
         return this.randomElement(RUSSIAN_LAST_NAMES);
     }
     
-    static generatePhone() {
+    generatePhone() {
         const codes = ['903', '905', '916', '925', '999', '495', '812', '343'];
         const code = this.randomElement(codes);
         const num1 = Math.floor(Math.random() * 9000) + 1000;
@@ -67,14 +67,14 @@ class RussianDataGenerator {
         return `+7 (${code}) ${num1}-${num2}`;
     }
     
-    static generateEmail(domain = 'temp.atv.local') {
+    generateEmail(domain = 'temp.atv.local') {
         const names = ['user', 'test', 'demo', 'temp', 'mail', 'email'];
         const name = this.randomElement(names);
         const num = Math.floor(Math.random() * 10000);
         return `${name}${num}@${domain}`;
     }
     
-    static generateAddress() {
+    generateAddress() {
         const city = this.randomElement(RUSSIAN_CITIES);
         const street = this.randomElement(RUSSIAN_STREETS);
         const house = Math.floor(Math.random() * 200) + 1;
@@ -82,38 +82,58 @@ class RussianDataGenerator {
         return `г. ${city}, ул. ${street}, д. ${house}, кв. ${flat}`;
     }
     
-    static generateCompany() {
+    generateCompany() {
         return this.randomElement(RUSSIAN_COMPANIES);
     }
     
-    static generateDateOfBirth() {
+    generateDateOfBirth() {
         const year = 1970 + Math.floor(Math.random() * 40);
         const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
         const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
         return `${day}.${month}.${year}`;
     }
     
-    static generatePassport() {
+    generatePassport() {
         const series = Math.floor(Math.random() * 9000) + 1000;
         const number = Math.floor(Math.random() * 900000) + 100000;
         return `${series} ${number}`;
     }
     
-    static generateFullData() {
+    generateMiddleName() {
+        return this.randomElement(RUSSIAN_MIDDLE_NAMES);
+    }
+    
+    generateFullData(customEmail = null) {
         const firstName = this.generateFirstName();
         const lastName = this.generateLastName();
+        const middleName = this.generateMiddleName();
         
         return {
             fio: this.generateFIO(),
             firstName: firstName,
             lastName: lastName,
+            middleName: middleName,
             phone: this.generatePhone(),
-            email: this.generateEmail(),
+            email: customEmail || this.generateEmail(),
             address: this.generateAddress(),
             company: this.generateCompany(),
             dateOfBirth: this.generateDateOfBirth(),
             passport: this.generatePassport()
         };
+    }
+    
+    // Генерация случайных данных для неопределенных полей
+    generateRandomText(length = 10) {
+        const chars = 'абвгдежзийклмнопрстуфхцчшщъыьэюя';
+        let result = '';
+        for (let i = 0; i < length; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+    
+    generateRandomNumber(min = 1000, max = 9999) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 }
 

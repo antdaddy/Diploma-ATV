@@ -9,7 +9,32 @@ let testData = null;
 document.addEventListener('DOMContentLoaded', () => {
     loadStoredData();
     setupEventListeners();
+    setupTabs();
 });
+
+function setupTabs() {
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetTab = tab.getAttribute('data-tab');
+            
+            // Убираем активный класс у всех
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(tc => tc.classList.remove('active'));
+            
+            // Добавляем активный класс выбранной вкладке
+            tab.classList.add('active');
+            document.getElementById(targetTab + 'Tab').classList.add('active');
+            
+            // При открытии вкладки "Письма" загружаем письма
+            if (targetTab === 'messages') {
+                loadMessages();
+            }
+        });
+    });
+}
 
 function setupEventListeners() {
     document.getElementById('generateData').addEventListener('click', generateTestData);
@@ -34,10 +59,38 @@ async function loadStoredData() {
     }
 }
 
-function generateTestData() {
+async function generateTestData() {
+    // Если есть созданный email, используем его, иначе генерируем новый
+    let emailToUse = null;
+    
+    if (currentEmailAccount) {
+        emailToUse = currentEmailAccount.email;
+    } else {
+        // Сначала создаем email
+        try {
+            const response = await fetch(`${API_URL}/email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                currentEmailAccount = await response.json();
+                emailToUse = currentEmailAccount.email;
+                chrome.storage.local.set({ emailAccount: currentEmailAccount });
+                displayEmail(currentEmailAccount);
+                connectWebSocket(currentEmailAccount.id);
+            }
+        } catch (error) {
+            console.error('Ошибка создания email:', error);
+            // Продолжаем с генерацией данных без email
+        }
+    }
+    
     // Загружаем генератор данных
     const generator = new RussianDataGenerator();
-    testData = generator.generateFullData();
+    testData = generator.generateFullData(emailToUse);
     
     // Сохраняем в storage
     chrome.storage.local.set({ testData });
@@ -51,6 +104,8 @@ function displayTestData(data) {
     display.classList.remove('hidden');
     display.innerHTML = `
         <div class="info-box">
+            <strong>Имя:</strong> ${data.firstName}<br>
+            <strong>Фамилия:</strong> ${data.lastName}<br>
             <strong>ФИО:</strong> ${data.fio}<br>
             <strong>Телефон:</strong> ${data.phone}<br>
             <strong>Email:</strong> ${data.email}<br>
@@ -84,6 +139,12 @@ async function createTempEmail() {
         // Подключаемся к WebSocket
         connectWebSocket(currentEmailAccount.id);
         
+        // Автоматически генерируем тестовые данные с созданным email
+        const generator = new RussianDataGenerator();
+        testData = generator.generateFullData(currentEmailAccount.email);
+        chrome.storage.local.set({ testData });
+        displayTestData(testData);
+        
     } catch (error) {
         console.error('Ошибка создания email:', error);
         alert('Ошибка создания временного email: ' + error.message);
@@ -103,38 +164,68 @@ function displayEmail(account) {
 }
 
 function connectWebSocket(emailId) {
+    if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+        // Уже подключено
+        return;
+    }
+    
     if (wsConnection) {
         wsConnection.close();
     }
     
     const wsUrl = `ws://localhost:8000/api/v1/ws/${emailId}`;
-    wsConnection = new WebSocket(wsUrl);
-    
     const status = document.getElementById('emailStatus');
     
-    wsConnection.onopen = () => {
-        status.textContent = 'Подключено';
-        status.className = 'status connected';
-        loadMessages(); // Загружаем существующие письма
-    };
-    
-    wsConnection.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'new_message') {
-            loadMessages(); // Обновляем список при новом письме
-        }
-    };
-    
-    wsConnection.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        status.textContent = 'Ошибка подключения';
+    try {
+        wsConnection = new WebSocket(wsUrl);
+        
+        wsConnection.onopen = () => {
+            status.textContent = 'Подключено';
+            status.className = 'status connected';
+            loadMessages(); // Загружаем существующие письма
+        };
+        
+        wsConnection.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'new_message') {
+                    loadMessages(); // Обновляем список при новом письме
+                }
+            } catch (e) {
+                console.error('Ошибка парсинга WebSocket сообщения:', e);
+            }
+        };
+        
+        wsConnection.onerror = (error) => {
+            // Не выводим ошибку в консоль, если это просто проблема подключения
+            // WebSocket ошибки часто возникают при недоступности сервера
+            if (wsConnection.readyState === WebSocket.CONNECTING || wsConnection.readyState === WebSocket.CLOSED) {
+                // Сервер недоступен, это нормально если он не запущен
+                status.textContent = 'Сервер недоступен';
+            } else {
+                status.textContent = 'Ошибка подключения';
+            }
+            status.className = 'status disconnected';
+        };
+        
+        wsConnection.onclose = (event) => {
+            status.textContent = 'Отключено';
+            status.className = 'status disconnected';
+            
+            // Автоматическое переподключение только если это не было намеренное закрытие
+            if (event.code !== 1000 && currentEmailAccount) {
+                // Переподключение через 3 секунды
+                setTimeout(() => {
+                    if (currentEmailAccount) {
+                        connectWebSocket(currentEmailAccount.id);
+                    }
+                }, 3000);
+            }
+        };
+    } catch (error) {
+        status.textContent = 'Ошибка создания подключения';
         status.className = 'status disconnected';
-    };
-    
-    wsConnection.onclose = () => {
-        status.textContent = 'Отключено';
-        status.className = 'status disconnected';
-    };
+    }
 }
 
 async function loadMessages() {
@@ -178,21 +269,45 @@ async function fillFormOnPage() {
         return;
     }
     
-    // Отправляем сообщение content script для заполнения формы
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
-    chrome.tabs.sendMessage(tab.id, {
-        action: 'fillForm',
-        data: testData
-    }, (response) => {
-        if (chrome.runtime.lastError) {
-            alert('Ошибка заполнения формы: ' + chrome.runtime.lastError.message);
-        } else if (response && response.success) {
-            alert('Форма успешно заполнена!');
-        } else {
-            alert('Не удалось заполнить форму');
+    try {
+        // Отправляем сообщение content script для заполнения формы
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tab) {
+            alert('Не удалось получить информацию о текущей вкладке');
+            return;
         }
-    });
+        
+        // Проверяем, что это не системная страница (chrome://, edge:// и т.д.)
+        if (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:')) {
+            alert('Расширение не может работать на системных страницах. Откройте обычную веб-страницу.');
+            return;
+        }
+        
+        chrome.tabs.sendMessage(tab.id, {
+            action: 'fillForm',
+            data: testData
+        }, (response) => {
+            if (chrome.runtime.lastError) {
+                const errorMsg = chrome.runtime.lastError.message;
+                if (errorMsg.includes('Could not establish connection')) {
+                    alert('Не удалось подключиться к странице. Попробуйте обновить страницу и повторить попытку.');
+                } else {
+                    alert('Ошибка заполнения формы: ' + errorMsg);
+                }
+            } else if (response && response.success) {
+                const filledCount = response.filledCount || 0;
+                const totalFields = response.totalFields || 0;
+                alert(`Форма успешно заполнена!\nЗаполнено полей: ${filledCount} из ${totalFields}`);
+            } else {
+                const message = response?.message || 'Не удалось заполнить форму';
+                alert(message);
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка при заполнении формы:', error);
+        alert('Произошла ошибка: ' + error.message);
+    }
 }
 
 function clearAllData() {
