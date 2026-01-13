@@ -2,12 +2,11 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from .core.config import settings
 
-# Пока используем простую строку подключения
-# Позже заменим на настройки из config
-DATABASE_URL = "postgresql://atv_user:atv_password@localhost:5432/atv_db"
+DATABASE_URL = settings.DATABASE_URL
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

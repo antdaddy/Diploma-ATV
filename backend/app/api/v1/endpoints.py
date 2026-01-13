@@ -43,13 +43,56 @@ def get_email_account(email_id: uuid.UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Email account not found")
     return account
 
+@router.delete("/email/{email_id}")
+def delete_email_account(email_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    Удалить почтовый ящик и все связанные письма
+    """
+    account = db.query(models.EmailAccount).filter(models.EmailAccount.id == email_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Email account not found")
+    
+    # Удаляем все сообщения
+    db.query(models.EmailMessage).filter(models.EmailMessage.email_account_id == email_id).delete()
+    
+    # Удаляем аккаунт
+    db.delete(account)
+    db.commit()
+    
+    return {"message": "Email account deleted successfully"}
+
 @router.get("/email/{email_id}/messages", response_model=List[schemas.EmailMessage])
 def get_messages(email_id: uuid.UUID, db: Session = Depends(get_db)):
     """
     Получить все письма для указанного ящика
     """
+    # Проверяем существование аккаунта
+    account = db.query(models.EmailAccount).filter(models.EmailAccount.id == email_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Email account not found")
+    
     messages = db.query(models.EmailMessage)\
         .filter(models.EmailMessage.email_account_id == email_id)\
         .order_by(models.EmailMessage.received_at.desc())\
         .all()
     return messages
+
+@router.get("/messages/{message_id}", response_model=schemas.EmailMessage)
+def get_message(message_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    Получить конкретное письмо по ID
+    """
+    message = db.query(models.EmailMessage).filter(models.EmailMessage.id == message_id).first()
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return message
+
+@router.get("/email/by-address/{email_address}", response_model=schemas.EmailAccount)
+def get_email_account_by_address(email_address: str, db: Session = Depends(get_db)):
+    """
+    Получить почтовый ящик по email адресу
+    """
+    account = db.query(models.EmailAccount).filter(models.EmailAccount.email == email_address).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Email account not found")
+    return account
