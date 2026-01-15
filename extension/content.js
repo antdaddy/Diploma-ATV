@@ -366,6 +366,50 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 });
+// Визуальный индикатор заполненных полей
+function showFillNotification(count) {
+    const notification = document.createElement('div');
+    notification.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 999999;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        ">
+            ✅ Заполнено ${count} полей
+        </div>
+    `;
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+}
+
+// Горячая клавиша для заполнения (Ctrl+Shift+F)
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        chrome.storage.local.get(['testData'], (result) => {
+            if (result.testData) {
+                const fillResult = fillForm(result.testData);
+                if (fillResult.success) {
+                    showFillNotification(fillResult.filledCount);
+                }
+            }
+        });
+    }
+});
+
+// Автоопределение форм при загрузке страницы
+window.addEventListener('load', () => {
+    const forms = document.querySelectorAll('form');
+    if (forms.length > 0) {
+        console.log(`ПМ АТВ: Найдено ${forms.length} форм на странице`);
+    }
+});
 
 // Добавляем визуальный индикатор заполнения
 function highlightFilledFields() {

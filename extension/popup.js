@@ -324,4 +324,19 @@ function clearAllData() {
     document.getElementById('emailDisplay').classList.add('hidden');
     document.getElementById('emailStatus').classList.add('hidden');
     document.getElementById('messagesList').innerHTML = '<div class="loading">Нет писем</div>';
+    document.getElementById('openSidePanel')?.addEventListener('click', openSidePanel);
+}
+
+
+async function openSidePanel() {
+    try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        
+        if (tab) {
+            await chrome.sidePanel.open({ tabId: tab.id });
+        }
+    } catch (error) {
+        console.error('Ошибка открытия side panel:', error);
+        alert('Не удалось открыть панель писем');
+    }
 }

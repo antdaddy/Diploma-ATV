@@ -44,11 +44,11 @@ def startup_event():
     Base.metadata.create_all(bind=engine)
     print("✅ Таблицы готовы")
     
-    # Запускаем SMTP сервер
-    from .services.smtp_server import get_smtp_server
-    smtp = get_smtp_server()
-    smtp.start()
-    print(f"✅ SMTP сервер запущен на {settings.SMTP_HOST}:{settings.SMTP_PORT}")
+    # Запускаем SMTP сервер ---- РАСКОММЕНТИТЬ
+    #from .services.smtp_server import get_smtp_server
+    #smtp = get_smtp_server()
+    #smtp.start()
+    #print(f"✅ SMTP сервер запущен на {settings.SMTP_HOST}:{settings.SMTP_PORT}")
 
 @app.on_event("shutdown")
 def shutdown_event():

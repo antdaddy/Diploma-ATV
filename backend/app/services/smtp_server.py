@@ -9,6 +9,11 @@ from datetime import datetime
 from ..database import SessionLocal
 from ..models import EmailAccount, EmailMessage as EmailMessageModel
 from .email_parser import parse_email_message
+import sys
+import os
+
+# Добавляем путь для импорта
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +28,7 @@ class EmailHandler(Message):
         try:
             # Получаем получателя
             recipient = message.get("To", "")
+            print(f"🔍 [DEBUG] Получено письмо. Кому: {recipient}")  # <-- ОТЛАДКА УДАЛИТЬ
             if not recipient:
                 logger.warning("Получено письмо без получателя")
                 return
@@ -31,6 +37,8 @@ class EmailHandler(Message):
             recipient_email = recipient
             if "<" in recipient and ">" in recipient:
                 recipient_email = recipient.split("<")[1].split(">")[0].strip()
+
+            print(f"🔍 [DEBUG] Извлечённый email: {recipient_email}")  # <-- ОТЛАДКА УДАЛИТЬ
             
             db: Session = SessionLocal()
             try:
@@ -40,9 +48,12 @@ class EmailHandler(Message):
                 ).first()
                 
                 if not account:
+                    print(f"⚠️ [DEBUG] Ящик НЕ НАЙДЕН: {recipient_email}")  # <-- ОТЛАДКА УДАЛИТЬ
                     logger.warning(f"Получено письмо на несуществующий ящик: {recipient_email}")
                     return
                 
+                print(f"✅ [DEBUG] Ящик найден! ID: {account.id}")  # <-- ОТЛАДКА УДАЛИТЬ
+
                 # Конвертируем EmailMessage в bytes для парсинга
                 raw_message = bytes(message.as_string(), encoding='utf-8')
                 
@@ -63,7 +74,8 @@ class EmailHandler(Message):
                 db.add(db_message)
                 db.commit()
                 db.refresh(db_message)
-                
+
+                print(f"💾 [DEBUG] Письмо сохранено! ID: {db_message.id}")  # <-- ОТЛАДКА УДАЛИТЬ
                 logger.info(f"Сообщение сохранено: {db_message.id} для {recipient_email}")
                 
                 # Отправляем уведомление через WebSocket, если есть подключение
